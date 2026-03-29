@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 '''
 A simple command-line tool to ask questions to the Ollama LLM server.
 
@@ -13,31 +15,60 @@ $ echo "What is the capital of France?" | xargs python ask.py
 This will achieve the same result, allowing you to integrate it into larger workflows or scripts.
 Note: Make sure to have the Ollama server running and the specified model available for this tool to work correctly.
 '''
-#!/usr/bin/env python3
+
 import sys
 import requests
+import json
 
+# default Ollama API Enpoint on Jetson
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "llama3.2:3b"
 
-def ask(prompt):
+# Available models
+MODELS = {
+    "llama": "llama3.2:3b",
+    "gemma": "gemma3:4b"
+}
+
+DEFAULT_MODEL = "llama"
+
+def ask(prompt, model):
+    #send the prompt to the Ollama server and stream the response
     response = requests.post(OLLAMA_URL, json={
-        "model": MODEL,
+        "model": model,
         "prompt": prompt,
         "stream": True
     })
     
     for line in response.iter_lines():
         if line:
-            import json
             chunk = json.loads(line)
             print(chunk.get("response", ""), end="", flush=True)
     print()
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: ask 'your question here'")
+    args = sys.argv[1:]
+
+    # Default model key
+    model_key = DEFAULT_MODEL
+
+    #check for model flag
+    if "--model" in args:
+        idx = args.index("--model")
+        model_key = args[idx + 1]
+
+        #remove the model flag and value from args
+        args.pop(idx)  # remove --model
+        args.pop(idx)  # remove the model name
+
+        #validate the model
+        if model_key not in MODELS:
+            print(f"unknown model: '{model_key}' . Available models: {', '.join(MODELS.keys())}")
+            sys.exit(1)
+
+    #remainder args are the prompt
+    if not args:
+        print("Usage: ask [--model llama|gemma] 'your question here'")
         sys.exit(1)
     
-    prompt = " ".join(sys.argv[1:])
-    ask(prompt)
+    prompt = " ".join(args)
+    ask(prompt, MODELS[model_key])
